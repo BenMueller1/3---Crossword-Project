@@ -1,7 +1,7 @@
 import sys
 import pdb
 from crossword import *
-
+from collections import deque
 
 class CrosswordCreator():
 
@@ -90,10 +90,10 @@ class CrosswordCreator():
         Enforce node and arc consistency, and then solve the CSP.
         """
         self.enforce_node_consistency()
-        #breakpoint()  # remove this before submitting
-        self.revise(list(self.crossword.variables)[0], list(self.crossword.variables)[2])  # remove this before submitting
-        breakpoint()
+        breakpoint()  # remove this before submitting
+        #self.revise(list(self.crossword.variables)[0], list(self.crossword.variables)[2])  # remove this before submitting
         self.ac3()
+        breakpoint()   # remove before submitting
         return self.backtrack(dict())
 
     def enforce_node_consistency(self):
@@ -145,8 +145,31 @@ class CrosswordCreator():
         return revised
 
 
+    def get_all_arcs(self):
+        """
+        Returns set of all variables that have overlaps (because these are the ones that have constraints between them)
+        """
+        # using sets allows us to ensure we don't add in duplicate sets
+        arcs = []
+        for var in self.domains.keys():
+            for neighbor in self.crossword.neighbors(var):
+                arc = set([var, neighbor])
+                if arc not in arcs:
+                    arcs.append(arc)
+        
+        # now change every set in arcs to a tuple (so that we can index them)
+        arcs_as_tuples = []
+        for arc in arcs:
+            arcs_as_tuples.append(tuple(arc))
+
+        return arcs_as_tuples
+
+
     def ac3(self, arcs=None):
         """
+
+        TODO I DO NOT THINK THIS IS WORKING
+
         Update `self.domains` such that each variable is arc consistent.
         If `arcs` is None, begin with initial list of all arcs in the problem.
         Otherwise, use `arcs` as the initial list of arcs to make consistent.
@@ -154,21 +177,52 @@ class CrosswordCreator():
         Return True if arc consistency is enforced and no domains are empty;
         return False if one or more domains end up empty.
         """
-        raise NotImplementedError
+        # need to fill a queue with every arc in the CSP (if arcs==None initially)
+        if arcs == None:
+            arcs = self.get_all_arcs()
+        
+        queue = deque(list(arcs))  # Use appendleft() and pop() for this to be treated like a queue
+        while queue: # while queue is nonempty
+            arc = queue.pop()
+            if self.revise(arc[0], arc[1]):
+                if len(self.domains[arc[0]]):
+                    return False
+                for neighbor in self.crossword.neighbors[arc[0]]:
+                    if neighbor is not arc[1]:
+                        new_arc = set([neighbor, arc[0]])
+                        queue.appendleft(new_arc)
+        return True
 
     def assignment_complete(self, assignment):
         """
         Return True if `assignment` is complete (i.e., assigns a value to each
         crossword variable); return False otherwise.
         """
-        raise NotImplementedError
+        for key, value in assignment.items():
+            if value == None:
+                return False
+        return True
 
     def consistent(self, assignment):
         """
         Return True if `assignment` is consistent (i.e., words fit in crossword
         puzzle without conflicting characters); return False otherwise.
         """
-        raise NotImplementedError
+        # check that all values in assignment are distinct
+        unique_checker = set()
+        for key, value in assignment.items():
+            if value != None:
+                if value in unique_checker:
+                    return False    # returns false if there is a duplicate
+                else:
+                    b = unique_checker.add(value)
+
+        # check that all values are the correect length (ie node consistent)
+        
+
+        # check no conflicts between neighboring variables (ie arc consistent)
+
+
 
     def order_domain_values(self, var, assignment):
         """
