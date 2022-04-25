@@ -90,6 +90,8 @@ class CrosswordCreator():
         Enforce node and arc consistency, and then solve the CSP.
         """
         self.enforce_node_consistency()
+        #breakpoint()  # remove this before submitting
+        self.revise(list(self.crossword.variables)[0], list(self.crossword.variables)[2])  # remove this before submitting
         breakpoint()
         self.ac3()
         return self.backtrack(dict())
@@ -109,6 +111,17 @@ class CrosswordCreator():
             self.domains[var] = new_domain
 
 
+    def check_if_y_has_value_satisfying_constraint(self, x, x_val, y):
+        for y_val in self.domains[y]:
+            # if this y_val satisfies the constraints when x=x_val, we return True
+            intersection = self.crossword.overlaps[x, y]
+            if intersection == None:
+                return True
+            if x_val[intersection[0]] == y_val[intersection[1]]:
+                return True
+        return False
+
+        
     def revise(self, x, y):
         """
         Make variable `x` arc consistent with variable `y`.
@@ -117,8 +130,20 @@ class CrosswordCreator():
 
         Return True if a revision was made to the domain of `x`; return
         False if no revision was made.
+
+        Recall: A is arc consistent with B if no matter what value A takes on, B still has a possible value
         """
-        raise NotImplementedError
+        revised = False
+        new_domain = set()
+        for x_val in self.domains[x]:
+            # if no y_val in Y's domain satisfies constraint for (X,Y), delete x_val from X.domain and set revise = True
+            if not self.check_if_y_has_value_satisfying_constraint(x, x_val, y):  # ie if y doesn't have a value satisfying the constraints when x=x_val
+                revised = True
+            else:
+                new_domain.add(x_val)
+        self.domains[x] = new_domain
+        return revised
+
 
     def ac3(self, arcs=None):
         """
