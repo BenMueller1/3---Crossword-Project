@@ -125,7 +125,7 @@ class CrosswordCreator():
         #print(self.order_domain_values ,incomplete_test_assignment))
         breakpoint()
         #lst = self.order_domain_values(tuple(self.crossword.variables)[1], incomplete_test_assignment)
-
+        v = self.select_unassigned_variable(incomplete_test_assignment)
         breakpoint()   # remove before submitting
         return self.backtrack(dict())
 
@@ -327,13 +327,30 @@ class CrosswordCreator():
 
     def select_unassigned_variable(self, assignment):
         """
+        This works!!
         Return an unassigned variable not already part of `assignment`.
         Choose the variable with the minimum number of remaining values
         in its domain. If there is a tie, choose the variable with the highest
         degree. If there is a tie, any of the tied variables are acceptable
         return values.
         """
-        raise NotImplementedError
+        if self.assignment_complete(assignment):
+            print("select_unassigned_variable cannot be called on complete assignments")
+            return
+        
+        var_with_min_remaining_values = None
+        min_remaining = 9999999
+        for var, value in assignment.items():
+            if value == None:
+                if len(self.domains[var]) < min_remaining:
+                    var_with_min_remaining_values = var
+                elif len(self.domains[var]) == min_remaining:   # in case of tie choose var with highest degree
+                    l1 = len(self.crossword.neighbors(var))
+                    l2 = len(self.crossword.neighbors(var_with_min_remaining_values))
+                    if (l1 >= l2):   # in case of equality (double tie) it doesn't matter which one we choose
+                        var_with_min_remaining_values = var  
+        return var_with_min_remaining_values
+
 
     def backtrack(self, assignment):
         """
