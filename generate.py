@@ -2,6 +2,10 @@ import sys
 import pdb
 from crossword import *
 from collections import deque
+from queue import PriorityQueue
+from copy import deepcopy
+import random
+
 
 class CrosswordCreator():
 
@@ -85,16 +89,46 @@ class CrosswordCreator():
 
         img.save(filename)
 
+
+    def generate_complete_test_assignment(self):
+        assignment = {}
+        for var in self.crossword.variables:
+            random_domain_choice = random.choice(tuple(self.domains[var]))
+            assignment[var] = random_domain_choice
+        return assignment
+
+
+    def generate_incomplete_test_assignment(self, none_chance = 0.3):
+        assignment = {}
+        for var in self.crossword.variables:
+            random_domain_choice = random.choice(tuple(self.domains[var]))
+            if (random.random() < none_chance):
+                assignment[var] = None
+            else:
+                assignment[var] = random_domain_choice
+        return assignment
+
+
     def solve(self):
         """
         Enforce node and arc consistency, and then solve the CSP.
         """
         self.enforce_node_consistency()
-        breakpoint()  # remove this before submitting
         #self.revise(list(self.crossword.variables)[0], list(self.crossword.variables)[2])  # remove this before submitting
         self.ac3()
+
+        complete_test_assignment = self.generate_complete_test_assignment()
+        incomplete_test_assignment = self.generate_incomplete_test_assignment(0.7)
+
+        # print(self.consistent(complete_test_assignment))
+        # print(self.consistent(incomplete_test_assignment))
+        #print(self.order_domain_values ,incomplete_test_assignment))
+        breakpoint()
+        #lst = self.order_domain_values(tuple(self.crossword.variables)[1], incomplete_test_assignment)
+
         breakpoint()   # remove before submitting
         return self.backtrack(dict())
+
 
     def enforce_node_consistency(self):
         """
@@ -193,8 +227,10 @@ class CrosswordCreator():
                         queue.appendleft(new_arc)
         return True
 
+
     def assignment_complete(self, assignment):
         """
+        This works
         Return True if `assignment` is complete (i.e., assigns a value to each
         crossword variable); return False otherwise.
         """
@@ -207,31 +243,87 @@ class CrosswordCreator():
         """
         Return True if `assignment` is consistent (i.e., words fit in crossword
         puzzle without conflicting characters); return False otherwise.
+
+        I think this works? Might need to test further
         """
         # check that all values in assignment are distinct
-        unique_checker = set()
-        for key, value in assignment.items():
+        unique_checker = set() 
+        for var, value in assignment.items():
             if value != None:
                 if value in unique_checker:
                     return False    # returns false if there is a duplicate
                 else:
                     b = unique_checker.add(value)
+                # check that all values are the correct length (ie node consistent)
+                if var.length != len(value):
+                    return False
 
-        # check that all values are the correect length (ie node consistent)
+                # check no conflicts between neighboring variables (ie arc consistent)
+                neighbors = self.crossword.neighbors(var)
+                for neighbor in neighbors:
+                    intersection = self.crossword.overlaps[var, neighbor]
+                    if intersection != None and assignment[neighbor] != None:
+                        if (value[intersection[0]]) != ((assignment[neighbor])[intersection[1]]):
+                            return False
+        return True
+
+    def sum_domain_lengths(self, neighbors, assignment):
+        """ sums sizes of domains in neighbors, ignoring variables that have already been assigned a value """
+        sum = 0
+        for neighbor in neighbors:
+            if assignment[neighbor] == None:    # if a value has already been assigned, then the domain shouldn't be counted
+                sum += len(self.domains[neighbor])
+        return sum
+
+
+    def pq_into_list(self, pq):
+        """ turns priority queue into list """
+        lst = []
+        while pq:
+            lst.append(pq.get())
+        return lst
+
+
+    def count_num_in_domain_of_y_satisfying_constraint(self, x, x_val, y):
+        total_satisfying_constraint = 0
+        for y_val in self.domains[y]:
+            intersection = self.crossword.overlaps[x, y]
+            if x_val[intersection[0]] == y_val[intersection[1]]:
+                total_satisfying_constraint += 1
+        return total_satisfying_constraint
+
+
+    def sum_values_satisfying_constraint(self, x, x_val, neighbors, assignment):
+        sum = 0
+        for neighbor in neighbors:
+            if assignment[neighbor] == None:            # if a value has already been assigned, then the domain shouldn't be counted
+                sum += self.count_num_in_domain_of_y_satisfying_constraint(x, x_val, neighbor)
+        return sum
         
-
-        # check no conflicts between neighboring variables (ie arc consistent)
-
-
 
     def order_domain_values(self, var, assignment):
         """
+        TODO FOR SOME REASON THIS DOESN'T RUN AND JUST FREEZES
+
         Return a list of values in the domain of `var`, in order by
         the number of values they rule out for neighboring variables.
         The first value in the list, for example, should be the one
         that rules out the fewest values among the neighbors of `var`.
         """
-        raise NotImplementedError
+        # use a priority queue and pass in negatives so that it is a min heap instaed of max heap
+        pq = PriorityQueue()
+        neighbors = self.crossword.neighbors(var)
+
+        for value in self.domains[var]:
+            neighbors_domains_sum_before_constraints = self.sum_domain_lengths(neighbors, assignment)
+            neighbors_domains_sum_after_constraints = self.sum_values_satisfying_constraint(var, value, neighbors, assignment)
+            values_ruled_out = neighbors_domains_sum_before_constraints - neighbors_domains_sum_after_constraints
+            pq.put((-values_ruled_out, value))
+
+        # turn pq into list (in correct order)
+        lst = self.pq_into_list(pq)
+        return lst
+            
 
     def select_unassigned_variable(self, assignment):
         """
