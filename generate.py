@@ -123,10 +123,10 @@ class CrosswordCreator():
         # print(self.consistent(complete_test_assignment))
         # print(self.consistent(incomplete_test_assignment))
         #print(self.order_domain_values ,incomplete_test_assignment))
-        breakpoint()
+        #breakpoint()
         #lst = self.order_domain_values(tuple(self.crossword.variables)[1], incomplete_test_assignment)
-        v = self.select_unassigned_variable(incomplete_test_assignment)
-        breakpoint()   # remove before submitting
+        # v = self.select_unassigned_variable(incomplete_test_assignment)
+        #breakpoint()   # remove before submitting
         return self.backtrack(dict())
 
 
@@ -361,7 +361,20 @@ class CrosswordCreator():
 
         If no assignment is possible, return None.
         """
-        raise NotImplementedError
+        if self.assignment_complete(assignment):
+            return assignment
+
+        var = self.select_unassigned_variable(assignment)
+
+        for value in self.domains[var]:
+            new_assignment = deepcopy(assignment)
+            new_assignment[var] = value
+            if self.consistent(new_assignment):
+                result = self.backtrack(new_assignment)
+                if result != None:
+                    return result
+
+        return None
 
 
 def main():
