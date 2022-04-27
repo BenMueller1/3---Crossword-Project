@@ -2,7 +2,7 @@ import sys
 import pdb
 from crossword import *
 from collections import deque
-from queue import PriorityQueue
+from heapq import heapify, heappush, heappop
 from copy import deepcopy
 import random
 
@@ -102,9 +102,7 @@ class CrosswordCreator():
         assignment = {}
         for var in self.crossword.variables:
             random_domain_choice = random.choice(tuple(self.domains[var]))
-            if (random.random() < none_chance):
-                assignment[var] = None
-            else:
+            if (random.random() > none_chance):
                 assignment[var] = random_domain_choice
         return assignment
 
@@ -114,19 +112,10 @@ class CrosswordCreator():
         Enforce node and arc consistency, and then solve the CSP.
         """
         self.enforce_node_consistency()
-        #self.revise(list(self.crossword.variables)[0], list(self.crossword.variables)[2])  # remove this before submitting
         self.ac3()
-
+        
         complete_test_assignment = self.generate_complete_test_assignment()
         incomplete_test_assignment = self.generate_incomplete_test_assignment(0.7)
-
-        # print(self.consistent(complete_test_assignment))
-        # print(self.consistent(incomplete_test_assignment))
-        #print(self.order_domain_values ,incomplete_test_assignment))
-        #breakpoint()
-        #lst = self.order_domain_values(tuple(self.crossword.variables)[1], incomplete_test_assignment)
-        # v = self.select_unassigned_variable(incomplete_test_assignment)
-        #breakpoint()   # remove before submitting
         return self.backtrack(dict())
 
 
@@ -146,11 +135,11 @@ class CrosswordCreator():
 
 
     def check_if_y_has_value_satisfying_constraint(self, x, x_val, y):
+        intersection = self.crossword.overlaps[x, y]
+        if intersection == None:
+            return True
         for y_val in self.domains[y]:
             # if this y_val satisfies the constraints when x=x_val, we return True
-            intersection = self.crossword.overlaps[x, y]
-            if intersection == None:
-                return True
             if x_val[intersection[0]] == y_val[intersection[1]]:
                 return True
         return False
@@ -168,42 +157,36 @@ class CrosswordCreator():
         Recall: A is arc consistent with B if no matter what value A takes on, B still has a possible value
         """
         revised = False
-        new_domain = set()
+        to_remove = []
         for x_val in self.domains[x]:
             # if no y_val in Y's domain satisfies constraint for (X,Y), delete x_val from X.domain and set revise = True
-            if not self.check_if_y_has_value_satisfying_constraint(x, x_val, y):  # ie if y doesn't have a value satisfying the constraints when x=x_val
+            if self.check_if_y_has_value_satisfying_constraint(x, x_val, y) == False:  # ie if y doesn't have a value satisfying the constraints when x=x_val
                 revised = True
-            else:
-                new_domain.add(x_val)
-        self.domains[x] = new_domain
+                to_remove.append(x_val)
+
+        for x_val in to_remove:
+            self.domains[x].remove(x_val)
+
         return revised
 
 
     def get_all_arcs(self):
         """
         Returns set of all variables that have overlaps (because these are the ones that have constraints between them)
+        This works
         """
         # using sets allows us to ensure we don't add in duplicate sets
         arcs = []
-        for var in self.domains.keys():
-            for neighbor in self.crossword.neighbors(var):
-                arc = set([var, neighbor])
-                if arc not in arcs:
+        for var1 in self.domains.keys():
+            for var2 in self.domains.keys():
+                if var1 != var2:
+                    arc = (var1, var2)
                     arcs.append(arc)
-        
-        # now change every set in arcs to a tuple (so that we can index them)
-        arcs_as_tuples = []
-        for arc in arcs:
-            arcs_as_tuples.append(tuple(arc))
-
-        return arcs_as_tuples
+        return arcs       
 
 
     def ac3(self, arcs=None):
         """
-
-        TODO I DO NOT THINK THIS IS WORKING
-
         Update `self.domains` such that each variable is arc consistent.
         If `arcs` is None, begin with initial list of all arcs in the problem.
         Otherwise, use `arcs` as the initial list of arcs to make consistent.
@@ -212,19 +195,21 @@ class CrosswordCreator():
         return False if one or more domains end up empty.
         """
         # need to fill a queue with every arc in the CSP (if arcs==None initially)
-        if arcs == None:
+        if arcs is None:
             arcs = self.get_all_arcs()
-        
         queue = deque(list(arcs))  # Use appendleft() and pop() for this to be treated like a queue
-        while queue: # while queue is nonempty
+
+        while len(queue) > 0: # while queue is nonempty
             arc = queue.pop()
-            if self.revise(arc[0], arc[1]):
-                if len(self.domains[arc[0]]):
-                    return False
-                for neighbor in self.crossword.neighbors[arc[0]]:
-                    if neighbor is not arc[1]:
-                        new_arc = set([neighbor, arc[0]])
-                        queue.appendleft(new_arc)
+            if arc is not None:
+                if self.revise(arc[0], arc[1]):
+                    if len(self.domains[arc[0]]) == 0:
+                        return False
+                    for neighbor in self.crossword.neighbors(arc[0]):
+                        if neighbor is not arc[1]:
+                            new_arc = (neighbor, arc[0])
+                            queue.appendleft(new_arc)
+        
         return True
 
 
@@ -234,10 +219,11 @@ class CrosswordCreator():
         Return True if `assignment` is complete (i.e., assigns a value to each
         crossword variable); return False otherwise.
         """
-        for key, value in assignment.items():
-            if value == None:
+        for key in self.domains.keys():
+            if key not in assignment.keys() or assignment[key] is None:
                 return False
         return True
+
 
     def consistent(self, assignment):
         """
@@ -247,25 +233,25 @@ class CrosswordCreator():
         I think this works? Might need to test further
         """
         # check that all values in assignment are distinct
-        unique_checker = set() 
+        unique_checker = []
         for var, value in assignment.items():
-            if value != None:
-                if value in unique_checker:
-                    return False    # returns false if there is a duplicate
-                else:
-                    b = unique_checker.add(value)
-                # check that all values are the correct length (ie node consistent)
-                if var.length != len(value):
-                    return False
+            if value in unique_checker:
+                return False    # returns false if there is a duplicate
+            else:
+                unique_checker.append(value)
+            # check that all values are the correct length (ie node consistent)
+            if var.length != len(value):
+                return False
 
-                # check no conflicts between neighboring variables (ie arc consistent)
-                neighbors = self.crossword.neighbors(var)
-                for neighbor in neighbors:
-                    intersection = self.crossword.overlaps[var, neighbor]
-                    if intersection != None and assignment[neighbor] != None:
-                        if (value[intersection[0]]) != ((assignment[neighbor])[intersection[1]]):
-                            return False
+            # check no conflicts between neighboring variables (ie arc consistent)
+            neighbors = self.crossword.neighbors(var)
+            for neighbor in neighbors:
+                intersection = self.crossword.overlaps[var, neighbor]
+                if neighbor in assignment:
+                    if value[intersection[0]] != assignment[neighbor][intersection[1]]:
+                        return False
         return True
+
 
     def sum_domain_lengths(self, neighbors, assignment):
         """ sums sizes of domains in neighbors, ignoring variables that have already been assigned a value """
@@ -276,58 +262,42 @@ class CrosswordCreator():
         return sum
 
 
-    def pq_into_list(self, pq):
+    def heappq_into_list(self, heappq):
         """ turns priority queue into list """
         lst = []
-        while pq:
-            lst.append(pq.get())
+        while heappq:
+            lst.append(heappop(heappq)[1])
         return lst
-
-
-    def count_num_in_domain_of_y_satisfying_constraint(self, x, x_val, y):
-        total_satisfying_constraint = 0
-        for y_val in self.domains[y]:
-            intersection = self.crossword.overlaps[x, y]
-            if x_val[intersection[0]] == y_val[intersection[1]]:
-                total_satisfying_constraint += 1
-        return total_satisfying_constraint
-
-
-    def sum_values_satisfying_constraint(self, x, x_val, neighbors, assignment):
-        sum = 0
-        for neighbor in neighbors:
-            if assignment[neighbor] == None:            # if a value has already been assigned, then the domain shouldn't be counted
-                sum += self.count_num_in_domain_of_y_satisfying_constraint(x, x_val, neighbor)
-        return sum
         
 
     def order_domain_values(self, var, assignment):
         """
-        TODO FOR SOME REASON THIS DOESN'T RUN AND JUST FREEZES
-
         Return a list of values in the domain of `var`, in order by
         the number of values they rule out for neighboring variables.
         The first value in the list, for example, should be the one
         that rules out the fewest values among the neighbors of `var`.
         """
         # use a priority queue and pass in negatives so that it is a min heap instaed of max heap
-        pq = PriorityQueue()
+        min_heap = []
+        heapify(min_heap)
         neighbors = self.crossword.neighbors(var)
-
         for value in self.domains[var]:
-            neighbors_domains_sum_before_constraints = self.sum_domain_lengths(neighbors, assignment)
-            neighbors_domains_sum_after_constraints = self.sum_values_satisfying_constraint(var, value, neighbors, assignment)
-            values_ruled_out = neighbors_domains_sum_before_constraints - neighbors_domains_sum_after_constraints
-            pq.put((-values_ruled_out, value))
-
+            if value in assignment:
+                continue
+            else:
+                values_ruled_out = 0
+                for neighbor in neighbors:
+                    if value in self.domains[neighbor]:
+                        values_ruled_out += 1
+                heappush(min_heap, (values_ruled_out, value))
+                
         # turn pq into list (in correct order)
-        lst = self.pq_into_list(pq)
+        lst = self.heappq_into_list(min_heap)
         return lst
-            
+
 
     def select_unassigned_variable(self, assignment):
         """
-        This works!!
         Return an unassigned variable not already part of `assignment`.
         Choose the variable with the minimum number of remaining values
         in its domain. If there is a tie, choose the variable with the highest
@@ -340,9 +310,13 @@ class CrosswordCreator():
         
         var_with_min_remaining_values = None
         min_remaining = 9999999
-        for var, value in assignment.items():
-            if value == None:
+
+        for var in self.domains.keys():
+            if var in assignment:
+                continue
+            else:
                 if len(self.domains[var]) < min_remaining:
+                    min_remaining = len(self.domains[var])
                     var_with_min_remaining_values = var
                 elif len(self.domains[var]) == min_remaining:   # in case of tie choose var with highest degree
                     l1 = len(self.crossword.neighbors(var))
@@ -366,14 +340,14 @@ class CrosswordCreator():
 
         var = self.select_unassigned_variable(assignment)
 
-        for value in self.domains[var]:
-            new_assignment = deepcopy(assignment)
-            new_assignment[var] = value
-            if self.consistent(new_assignment):
-                result = self.backtrack(new_assignment)
+        #for value in list(self.domains[var]):
+        for value in self.order_domain_values(var, assignment):
+            if self.consistent(assignment):
+                assignment[var] = value
+                result = self.backtrack(assignment)
                 if result != None:
                     return result
-
+                assignment.pop(var)
         return None
 
 
