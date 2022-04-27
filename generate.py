@@ -98,11 +98,11 @@ class CrosswordCreator():
         return assignment
 
 
-    def generate_incomplete_test_assignment(self, none_chance = 0.3):
+    def generate_incomplete_test_assignment(self, not_included_chance = 0.3):
         assignment = {}
         for var in self.crossword.variables:
             random_domain_choice = random.choice(tuple(self.domains[var]))
-            if (random.random() > none_chance):
+            if (random.random() > not_included_chance):
                 assignment[var] = random_domain_choice
         return assignment
 
@@ -113,9 +113,6 @@ class CrosswordCreator():
         """
         self.enforce_node_consistency()
         self.ac3()
-        
-        complete_test_assignment = self.generate_complete_test_assignment()
-        incomplete_test_assignment = self.generate_incomplete_test_assignment(0.7)
         return self.backtrack(dict())
 
 
@@ -150,11 +147,6 @@ class CrosswordCreator():
         Make variable `x` arc consistent with variable `y`.
         To do so, remove values from `self.domains[x]` for which there is no
         possible corresponding value for `y` in `self.domains[y]`.
-
-        Return True if a revision was made to the domain of `x`; return
-        False if no revision was made.
-
-        Recall: A is arc consistent with B if no matter what value A takes on, B still has a possible value
         """
         revised = False
         to_remove = []
@@ -173,9 +165,7 @@ class CrosswordCreator():
     def get_all_arcs(self):
         """
         Returns set of all variables that have overlaps (because these are the ones that have constraints between them)
-        This works
         """
-        # using sets allows us to ensure we don't add in duplicate sets
         arcs = []
         for var1 in self.domains.keys():
             for var2 in self.domains.keys():
@@ -215,7 +205,6 @@ class CrosswordCreator():
 
     def assignment_complete(self, assignment):
         """
-        This works
         Return True if `assignment` is complete (i.e., assigns a value to each
         crossword variable); return False otherwise.
         """
@@ -230,9 +219,7 @@ class CrosswordCreator():
         Return True if `assignment` is consistent (i.e., words fit in crossword
         puzzle without conflicting characters); return False otherwise.
 
-        I think this works? Might need to test further
         """
-        # check that all values in assignment are distinct
         unique_checker = []
         for var, value in assignment.items():
             if value in unique_checker:
@@ -290,7 +277,7 @@ class CrosswordCreator():
                     if value in self.domains[neighbor]:
                         values_ruled_out += 1
                 heappush(min_heap, (values_ruled_out, value))
-                
+
         # turn pq into list (in correct order)
         lst = self.heappq_into_list(min_heap)
         return lst
@@ -305,7 +292,7 @@ class CrosswordCreator():
         return values.
         """
         if self.assignment_complete(assignment):
-            print("select_unassigned_variable cannot be called on complete assignments")
+            print("ERROR: select_unassigned_variable cannot be called on complete assignments")
             return
         
         var_with_min_remaining_values = None
